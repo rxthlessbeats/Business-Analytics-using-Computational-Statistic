@@ -1,0 +1,208 @@
+---
+title: "BACS HW14"
+author: '109090046 assisted by 109090035 109090023'
+date: "2023-05-17"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(psych)
+library(tidyverse)
+library(readxl)
+```
+
+### Let's reconsider the security questionnaire from last week, where consumers were asked security related questions about one of the e-commerce websites they had recently used.
+
+## Question 1) Earlier, we examined a dataset from a security survey sent to customers of e-commerce websites. However, we only used the eigenvalue \> 1 criteria and the screeplot "elbow" rule to find a suitable number of components. Let's perform a parallel analysis as well this week:
+
+```{r}
+data <- read_excel("D:/下載/security_questions.xlsx", sheet= 2)
+```
+
+### a. Show a single visualization with scree plot of data, scree plot of simulated noise (use average eigenvalues of ≥ 100 noise samples), and a horizontal line showing the eigenvalue = 1 cutoff.
+
+```{r}
+# Simulated noise eigenvalues
+set.seed(42)
+sim_noise <- function(n, p) 
+{ 
+  noise <- data.frame(replicate(p, rnorm(n)))
+  eigen(cor(noise))$values
+}
+evalues_noise <- replicate(100, sim_noise(nrow(data), ncol(data))) 
+evalues_mean <- apply(evalues_noise, 1, mean)
+pca <- prcomp(data, scale. = TRUE)
+
+# Create a data frame for plotting
+plot_data <- data.frame(
+  Component = 1:length(pca$sdev),
+  Variance = pca$sdev^2,
+  Noise = evalues_mean[1:length(pca$sdev)]
+)
+
+# Filter the data for the first 10 components
+plot_data <- plot_data[1:10, ]
+
+# Create the plot
+ggplot(plot_data, aes(x = Component)) +
+  geom_point(aes(y = Variance), color = "skyblue", size=3) +
+  geom_point(aes(y = Noise), color = "coral", size=3) +
+  geom_line(aes(y = Variance), color = "skyblue") +
+  geom_line(aes(y = Noise), color = "coral") +
+  geom_hline(yintercept = 1, linetype = "dashed", linewidth=0.8) +
+  scale_y_continuous(trans = 'log10') +
+  labs(x = "Principal Component", 
+       y = "Eigenvalue",
+       title = "Scree Plot",
+       subtitle = "Comparison of Data and Simulated Noise")
+```
+
+### b. How many dimensions would you retain if we used Parallel Analysis?
+
+```{r}
+retain_dims <- sum(plot_data$Variance > plot_data$Noise)
+
+retain_dims
+```
+
+There are only first two dimensions that higher than the noise eigenvalues, so we retain those dimensions.
+
+------------------------------------------------------------------------
+
+## Question 2) Earlier, we treated the underlying dimensions of the security dataset as composites and examined their eigenvectors (weights). Now, let's treat them as factors and examine factor loadings (use the `principal()` method from the `psych` package)
+
+### a. Looking at the loadings of the first 3 principal components, to which components does each item seem to best belong?
+
+```{r}
+principal <- principal(data, nfactor=10, rotate="none", scores=TRUE)
+pc1 <- principal$loadings[,"PC1"]
+pc2 <- principal$loadings[,"PC2"]
+pc3 <- principal$loadings[,"PC3"]
+first3pc <- round(cbind(pc1, pc2, pc3), digits=3)
+
+first3pc
+```
+
+The loadings of principal components represent the correlations between the original variables and the component. High absolute values (either positive or negative) indicate that the original variable contributes significantly to that component. *To determine which component an item best belongs to, we can consider the component where the item has the highest absolute loading.*
+
+-   **PC1:** Q1, Q2, Q3, Q5, Q6, Q7, Q8, Q9, Q10, Q11, Q13, Q14, Q15, Q16, Q18\*\*
+-   **PC2:** Q4, Q12, Q17
+-   **PC3:** None
+
+### b. How much of the total variance of the security dataset do the first 3 PCs capture?
+
+```{r}
+summary(pca)$importance[2, c(1:3)]
+
+sum(summary(pca)$importance[2, c(1:3)])
+```
+
+Sum up the proportions of variance, first 3 PCs captures 66.893%
+
+### c. Looking at commonality and uniqueness, which items are less than adequately explained by the first 3 principal components?
+
+```{r}
+commonalities <- rowSums(first3pc^2)
+uniqueness <- 1 - commonalities
+
+uniqueness
+```
+
+**Q2** with highest uniqueness of 0.538954 is less adequately explained by the first three components.
+
+### d. How many measurement items share similar loadings between 2 or more components?
+
+```{r}
+# function for evaluate similarity
+evaluate_loadings <- function(df, range) {
+  return(
+    (
+      abs(df[range, 1] - df[range, 2])<0.1 | 
+      abs(df[range, 2] - df[range, 3])<0.1 | 
+      abs(df[range, 1] - df[range, 3])<0.1
+    ) &
+    (
+      df[range, 1] < 0.7 & 
+      df[range, 2] < 0.7 & 
+      df[range, 3] < 0.7
+    )
+  )
+}
+
+evaluate_loadings(principal$loading, 1:ncol(data))
+```
+
+If the difference between each PCs smaller than 0.1 and the PCs are smaller than 0.7, it will return True.
+
+**Q4, Q12 and Q17** share similar loadings between 2 or more components.
+
+### e. Can you interpret a 'meaning' behind the first principal component from the items that load best upon it? (see the wording of the questions of those items)
+
+**ANS:**
+
+The items with the highest loadings on PC1 are Q1, Q3, Q8, Q14, and Q18. If these items share a common theme or concept, that could be interpreted as the 'meaning' of the first component.
+
+All these questions are related to a specific aspect of information and accuracy, so I think the first component could be interpreted as representing that aspect.
+
+------------------------------------------------------------------------
+
+## Question 3) To improve interpretability of loadings, let's rotate our principal component axes using the varimax technique to get rotated components (extract and rotate only three principal components)
+
+### a. Individually, does each rotated component (RC) explain the same, or different, amount of variance than the corresponding principal components (PCs)?
+
+```{r}
+rc <- principal(data, nfactors = 3, rotate = "varimax", scores = TRUE)$loadings
+rc
+```
+
+Looking at the proportion variance, we can see `RC1`is 30\% and `PC1`is 51\%, `RC2` is 19\% and `PC2` is 8\%. `RC3` is 16\% and `PC3` is 6\%. The ratios have large difference, so the are not the same.  
+
+Each rotated component (RC) should explain the same amount of variance as the corresponding unrotated principal component (PC). However, the pattern of loadings across variables will be different between the PCs and RCs.
+
+### b. Together, do the three rotated components explain the same, more, or less cumulative variance as the three principal components combined?
+
+**ANS:** The total amount of variance explained by a given number of components (whether rotated or not) is the same. Rotation does not change the total variance explained, it only changes the distribution of that variance across the components to make the solution more interpretable.
+
+### c. Looking back at the items that shared similar loadings with multiple principal components (#2d), do those items have more clearly differentiated loadings among rotated components?
+
+```{r}
+rc[c(4,12,17), 1:3]
+```
+
+Because the `RC2` loadings are over 0.8, I think they have more clearly differentiated.
+
+### d. Can you now more easily interpret the "meaning" of the 3 rotated components from the items that load best upon each of them? (see the wording of the questions of those items)
+
+```{r}
+rc[rc[, 1] > 0.7, 1]
+```
+
+For `RC1`, those questions are all about "personal information protection".
+
+```{r}
+rc[rc[, 2] > 0.7, 2]
+```
+
+For `RC2`, those questions are all about "transaction processing".
+
+```{r}
+rc[rc[, 3] > 0.7, 3]
+```
+
+For `RC3`, thosw questions are about "providing evidence to protect against its denial".
+
+### e. If we reduced the number of extracted and rotated components to 2, does the meaning of our rotated components change?
+
+```{r}
+reduced_rc <- principal(data, nfactors = 2, rotate = "varimax", scores = TRUE)
+reduced_rc$loadings[,1][reduced_rc$loadings[,1] > 0.7]
+```
+
+Yes, when we reduced the number of extracted and rotated components to 2, the number of questions belong to `RC1` increase. Also, the meanings change a little. Those question are about personal information and security.
+
+------------------------------------------------------------------------
+
+## (ungraded) Looking back at all our results and analyses of this dataset (from this week and previous), how many components (1-3) do you believe we should extract and analyze to understand the security dataset? Feel free to suggest different answers for different purposes.
+
+I think there should be at least three because when we set `nFactor` to 2, the `RC1` are not only about personal information, but also about confidentiality of the transaction.

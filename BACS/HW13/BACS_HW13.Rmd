@@ -1,0 +1,242 @@
+---
+title: "BACS HW13"
+author: "109090046 assisted by 109090035 109090023"
+date: "2023-05-11"
+output: word_document
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(car)
+library(readxl)
+```
+
+## Load data
+
+```{r}
+auto <- read.table("D:/下載/auto-data.txt", header=FALSE, na.strings = "?") 
+names(auto) <- c("mpg", "cylinders", "displacement", "horsepower", "weight", "acceleration", "model_year", "origin", "car_name")
+```
+
+## Question 1)
+
+#### Let's revisit the issue of multicollinearity of main effects (between cylinders, displacement, horsepower, and weight) we saw in the cars dataset, and try to apply principal components to it. Start by recreating the cars_log dataset, which log-transforms all variables except model year and origin.
+
+#### [Important]{.underline}: remove any rows that have missing values.
+
+### a.
+
+####Let's analyze the principal components of the four collinear
+variables
+
+#### i. Create a new data.frame of the four log-transformed variables with high multicollinearity (Give this smaller data frame an appropriate name -- what might they jointly mean?)
+
+```{r}
+# Creating a new data frame with the four log-transformed variables
+cars_log <- with(auto, data.frame(log(mpg), log(cylinders), log(displacement), log(horsepower), log(weight), log(acceleration), model_year, origin))
+
+# remove na
+cars_log<-na.omit(cars_log)
+
+cars_log_regr <- lm(log.mpg. ~ log.cylinders. + log.displacement. + log.horsepower. + log.weight. + log.acceleration. + model_year + factor(origin), data = cars_log ,na.action = na.exclude)
+
+# vif from car package
+vif(cars_log_regr)
+```
+
+There are four variables ( cylinders, displacement, horsepower, and
+weight ) have high multicollinearity.
+
+```{r}
+new_cars_log <-with(auto, data.frame(log(cylinders), log(displacement),
+log(horsepower),log(weight)), na.rm=TRUE)
+new_cars_log <- na.omit(new_cars_log)
+head(new_cars_log)
+```
+
+#### ii. How much variance of the four variables is explained by their first principal component? (a summary of the prcomp() shows it, but try computing this from the eigenvalues alone)
+
+```{r}
+# Principal components analysis
+pca_cars <- prcomp(new_cars_log, scale. = TRUE)
+summary(pca_cars)
+
+# Eigenvalues
+eigenvalues <- eigen(cor(new_cars_log))$values
+var_explained <- eigenvalues[1] / length(eigenvalues)
+var_explained
+```
+
+#### iii. Looking at the values and valence (positiveness/negativeness) of the first principal component's eigenvector, what would you call the information captured by this component? (i.e., think what concept the first principal component captures or represents)
+
+```{r}
+loadings <- pca_cars$rotation
+print(loadings[, 1])
+```
+
+The first principal component capture all 4 variables (cylinders,
+displacement, horsepower, and weight) at almost same level (0.5) and
+they are all negative.
+
+The sign of a loading indicates the direction of the correlation between
+the original variable and the component. If all loadings are positive,
+it could mean that the first principal component represents the overall
+size or power of the car. This would be consistent with the fact that
+cylinders, displacement, horsepower, and weight are all measures of size
+or power. If some loadings are negative, the interpretation would be
+more complex and depend on the specific loadings.
+
+### b.
+
+#### Let's revisit our regression analysis on cars_log:
+
+#### i. Store the scores of the first principal component as a new column of cars_log cars_log\$new_column_name \<- ...scores of PC1... Give this new column a name suitable for what it captures (see 1.a.i.)
+
+```{r}
+cars_log$car_power <- predict(pca_cars)[, 1]
+head(cars_log)
+```
+
+#### ii. Regress mpg over the column with PC1 scores (replacing cylinders, displacement, horsepower, and weight), as well as acceleration, model_year and origin
+
+```{r}
+lm1 <- lm(log.mpg. ~ car_power + log.acceleration. + model_year + factor(origin), data = cars_log, na.action = na.exclude)
+
+summary(lm1)
+```
+
+#### iii. Try running the regression again over the same independent variables, but this time with everything standardized. How important is this new column relative to other columns?
+
+```{r}
+# Standardizing the variables
+cars_log_standardized <- scale(cars_log , center = TRUE , scale = FALSE)
+
+# Make it as data.frame
+cars_log_standardized <- as.data.frame(cars_log_standardized)
+
+# Running the regression on standardized variables
+lm2 <- lm(log.mpg. ~ car_power + log.acceleration. + model_year + factor(origin), data = cars_log_standardized, na.action = na.exclude)
+summary(lm2)
+```
+
+The importance of the `car_power` variable relative to the other
+predictors in the standardized regression can be assessed by comparing
+the coefficients, which now represent the change in `mpg` associated
+with a one-standard-deviation increase in the predictor. This can help
+in understanding the relative importance of the predictors.
+
+------------------------------------------------------------------------
+
+## Question 2)
+
+#### Please download the Excel data file security_questions.xlsx from Canvas. In your analysis, you can either try to read the data sheet from the Excel file directly from R (there might be a package for that!) or you can try to export the data sheet to a CSV file before reading it into R.
+
+```{r}
+# security_questions <- read_excel("D:/下載/security_questions.xlsx", sheet= 1)
+data <- read_excel("D:/下載/security_questions.xlsx", sheet= 2) 
+
+#head(security_questions)
+head(data)
+```
+
+*A group of researchers is studying how customers who shopped on
+e-commerce websites over the winter holiday season perceived the
+security of their most recently used e-commerce site. Based on feedback
+from experts, the company has created eighteen questions (see
+'questions' tab of excel file) regarding security considerations at
+e-commerce websites. Over 400 customers responded to these questions
+(see 'data' tab of Excel file). The researchers now wants to use the
+results of these eighteen questions to reveal if there are some
+underlying dimensions of people's perception of online security that
+effectively capture the variance of these eighteen questions. Let's
+analyze the principal components of the eighteen items.*
+
+### a.
+
+#### How much variance did each extracted factor explain?
+
+```{r}
+# Principal components analysis
+pca_result <- prcomp(data, scale. = TRUE)
+summary(pca_result)
+
+# Eigenvalues
+eigenvalues <- eigen(cor(data))$values
+var_explained <- eigenvalues / length(eigenvalues)
+var_explained
+```
+
+### b.
+
+#### How many dimensions would you retain, according to the two criteria we discussed? (Eigenvalue ≥ 1 and Scree Plot -- can you show the screeplot with eigenvalue=1 threshhold?)
+
+```{r}
+# Eigenvalue ≥ 1 
+eigenvalues[eigenvalues >= 1]
+```
+
+**ANS:** retain 3 dimensions
+
+```{r}
+screeplot(pca_result, type="lines") # Scree Plot : Q1~Q3 above the threshold
+abline(h=1, lty="dashed")
+```
+
+### c.
+
+#### (ungraded) Can you interpret what any of the principal components mean? Try guessing the meaning of the first two or three PCs looking at the PC-vs-variable matrix
+
+------------------------------------------------------------------------
+
+## Question 3)
+
+#### Let's simulate how principal components behave interactively: run the `interactive_pca()` function from the `compstatslib` package we have used earlier:
+
+### a.
+
+#### Create an oval shaped scatter plot of points that stretches in two directions -- you should find that the principal component vectors point in the major and minor directions of variance (dispersion). Show this visualization.
+
+```{r}
+library(compstatslib)
+# interactive_pca()
+```
+
+![](images/Rplot01.png)
+
+\$pca Standard deviations (1, .., p=2):
+
+[1] 27.84296 16.20438
+
+Rotation (n x k) = (2 x 2):
+
+PC1 PC2
+
+x -0.08066056 -0.99674163
+
+y -0.99674163 0.08066056
+
+### b.
+
+#### Can you create a scatterplot whose principal component vectors do NOT seem to match the major directions of variance? Show this visualization.
+
+![](images/Rplot01.png)
+
+\$pca
+
+Standard deviations (1, .., p=2):
+
+[1] 32.85468 26.78596
+
+Rotation (n x k) = (2 x 2):
+
+PC1 PC2
+
+x 0.5779645 -0.8160619
+
+y -0.8160619 -0.5779645
+
+

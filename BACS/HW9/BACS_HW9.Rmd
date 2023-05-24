@@ -1,0 +1,361 @@
+---
+title: "BACS HW Week 9"
+author: '109090046 assited by 109090035'
+date: "2023-04-11"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+library(magrittr)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Question 1)
+
+Let's make an automated recommendation system for the PicCollage mobile app.
+
+```{r}
+library(data.table)
+ac_bundles_dt <- fread("D:/下載/piccollage_accounts_bundles.csv")
+ac_bundles_matrix <- as.matrix(ac_bundles_dt[, -1, with=FALSE])
+
+```
+
+### a.
+
+Let's explore to see if any sticker bundles seem intuitively similar:
+
+#### i.
+
+(recommended) Download PicCollage onto your mobile from the App Store and take a look at the style and content of various bundles in their Sticker Store (iOS app: can see how many recommendations does each bundle have? Android app might not have recommendations)
+
+**ANS:** 6
+
+#### ii.
+
+Find a single sticker bundle that is both in our limited data set and also in the app's Sticker Store (e.g., "sweetmothersday"). Then, use your intuition to recommend (guess!) five other bundles in our dataset that might have similar usage patterns as this bundle.
+
+**ANS:** I chose 'betweenspring', and I guess 'saintvalentine', 'HeartStickerPack', 'supersweet', 'togetherwerise' and 'lovestinks2016' might have similar usage patterns as this bundle.
+
+### b.
+
+Let's find similar bundles using geometric models of similarity:
+
+#### i.
+
+Let's create cosine similarity based recommendations for all bundles:
+
+##### 1.
+
+Create a matrix or data.frame of the top 5 recommendations for all bundles
+
+```{r}
+library(lsa)
+cos_sim_matrix <- round(cosine(ac_bundles_matrix),2)
+  
+# Create an empty data frame to store the recommendations
+recommendations <- data.frame(bundle = character(),
+                              top_1 = character(),
+                              top_2 = character(),
+                              top_3 = character(),
+                              top_4 = character(),
+                              top_5 = character(),
+                              stringsAsFactors = FALSE)
+
+for (i in 1:nrow(cos_sim_matrix)) {
+    top_5_indices <- order(cos_sim_matrix[i,], decreasing = TRUE)[2:6] 
+    top_5_recommendations <- rownames(cos_sim_matrix)[top_5_indices]
+    recommendations <- rbind(recommendations, 
+                             data.frame(bundle = rownames(cos_sim_matrix)[i],
+                                        top_1 = top_5_recommendations[1],
+                                        top_2 = top_5_recommendations[2],
+                                        top_3 = top_5_recommendations[3],
+                                        top_4 = top_5_recommendations[4],
+                                        top_5 = top_5_recommendations[5],
+                                        stringsAsFactors = FALSE))
+}
+
+recommendations %>% head()
+```
+
+##### 2.
+
+Create a new function that automates the above functionality: it should take an accounts-bundles matrix as a parameter, and return a data object with the top 5 recommendations for each bundle in our data set, using cosine similarity.
+
+```{r}
+get_top_5_recommendations <- function(data_matrix) {
+  # Compute the cosine similarity matrix
+  cos_sim_matrix <- round(cosine(data_matrix),2)
+  
+  # Create an empty data frame to store the recommendations
+  recommendations <- data.frame(bundle = character(),
+                                top_1 = character(),
+                                top_2 = character(),
+                                top_3 = character(),
+                                top_4 = character(),
+                                top_5 = character(),
+                                stringsAsFactors = FALSE)
+  
+  # Loop through each row (bundle) and get the top 5 recommendations
+  for (i in 1:nrow(cos_sim_matrix)) {
+    top_5_indices <- order(cos_sim_matrix[i,], decreasing = TRUE)[2:6] 
+    # Exclude the first index (itself)
+    top_5_recommendations <- rownames(cos_sim_matrix)[top_5_indices]
+    recommendations <- rbind(recommendations,
+                             data.frame(bundle=rownames(cos_sim_matrix)[i],
+                                        top_1 = top_5_recommendations[1],
+                                        top_2 = top_5_recommendations[2],
+                                        top_3 = top_5_recommendations[3],
+                                        top_4 = top_5_recommendations[4],
+                                        top_5 = top_5_recommendations[5],
+                                        stringsAsFactors = FALSE))
+  }
+  
+  return(recommendations)
+}
+```
+
+##### 3.
+
+What are the top 5 recommendations for the bundle you chose to explore earlier?
+
+```{r}
+top_5 <- get_top_5_recommendations(ac_bundles_matrix)
+top_5 <- top_5[top_5$bundle == "betweenspring", ]
+top_5
+```
+
+#### ii.
+
+Let's create correlation based recommendations.
+
+##### 1.
+
+Reuse the function you created above (don't change it; don't use the cor() function)
+
+##### 2.
+
+But this time give the function an accounts-bundles matrix where each bundle (column) has already been mean-centered in advance.
+
+```{r}
+# Mean-centered in advance
+mean_centered_matrix <- apply(ac_bundles_matrix, 2, function(x) x - mean(x))
+
+top_5_cor <- get_top_5_recommendations(mean_centered_matrix)
+```
+
+##### 3.
+
+Now what are the top 5 recommendations for the bundle you chose to explore earlier?
+
+```{r}
+top_5_cor <- top_5_cor[top_5_cor$bundle == "betweenspring", ]
+top_5_cor
+```
+
+#### iii.
+
+Let's create adjusted-cosine based recommendations.
+
+##### 1.
+
+Reuse the function you created above (you should not have to change it)
+
+##### 2.
+
+But this time give the function an accounts-bundles matrix where each account (row) has already been mean-centered in advance.
+
+```{r}
+adjusted_cosine_matrix <- apply(ac_bundles_matrix, 1, function(x) x - mean(x))
+```
+
+```{r}
+adjusted_cosine_matrix <- t(adjusted_cosine_matrix)
+top_5_ad_co <- get_top_5_recommendations(adjusted_cosine_matrix)
+```
+
+##### 3.
+
+What are the top 5 recommendations for the bundle you chose to explore earlier?
+
+```{r}
+top_5_ad_co <- top_5_ad_co[top_5_ad_co$bundle == "betweenspring", ]
+top_5_ad_co
+```
+
+### c.
+
+(not graded) Are the three sets of geometric recommendations similar in nature (theme/keywords) to the recommendations you picked earlier using your intuition alone? What reasons might explain why your computational geometric recommendation models produce different results from your intuition?
+
+**ANS:** Not similar, I think it's because a bundle may contains lots of theme of stickers.
+
+### d.
+
+(not graded) What do you think is the conceptual difference in cosine similarity, correlation, and adjusted-cosine?
+
+**ANS:** Cosine similarity measures the direction of vectors, correlation measures the linear relationship between variables, and adjusted-cosine similarity measures the relative rating patterns between users. The choice of similarity measure depends on the context and purpose of the analysis, as well as the properties of the data being compared.
+
+------------------------------------------------------------------------
+
+## Question 2
+
+In our `compstatslib` package, you will find an `interactive_regression()` function that runs a simulation. You can click to add data points to the plotting area and see a corresponding regression line (hitting ESC will stop the simulation). You will also see three numbers: regression intercept -- where the regression line crosses the y-axis; regression coefficient -- the slope of x on y; correlation - correlation of x and y. For each of the scenarios below, create the described set of points in the simulation. You might have to create each scenario a few times to get a general sense of them. Visual the scenarios a - d shown below.
+
+```{r}
+library(compstatslib)
+# interactive_regression()
+```
+
+### a.
+
+Scenario A: Create a horizontal set of random points, with a relatively narrow but flat distribution.
+
+#### i.
+
+What raw slope of x and y would you generally expect?
+
+**ANS:** The raw slope of x and y would be close to zero or very small. This is because the points are distributed horizontally, which means that changes in the x variable will not have a significant impact on the y variable. Therefore, the regression line should be almost flat, indicating a weak relationship between the x and y variables.
+
+#### ii.
+
+ii. What is the correlation of x and y that you would generally expect?
+
+**ANS:** The correlation of x and y that you would generally expect would also be close to zero or very small. This is because the correlation coefficient measures the strength of the linear relationship between the x and y variables, and if the points are distributed horizontally, there is little or no linear relationship to measure. Therefore, the correlation coefficient should be close to zero, indicating no or very weak correlation.
+
+### b.
+
+Scenario B: Create a random set of points to fill the entire plotting area, along both x-axis and y-axis
+
+#### i.
+
+What raw slope of the x and y would you generally expect?
+
+**ANS:** The raw slope of x and y would be non-zero and positive. This is because the points are distributed randomly across the entire plotting area, and some of them are likely to be clustered around the origin or the edges of the plot. Therefore, the regression line should slope upwards from left to right, indicating a positive relationship between the x and y variables.
+
+#### ii.
+
+What is the correlation of x and y that you would generally expect?
+
+**ANS:** The correlation of x and y that you would generally expect would be positive or moderately strong. This is because the correlation coefficient measures the strength of the linear relationship between the x and y variables, and if the points are distributed randomly across the entire plot, there is likely to be a positive or moderate linear relationship to measure. Therefore, the correlation coefficient should be positive or moderately strong, indicating a positive or moderate correlation.
+
+### c.
+
+Scenario C: Create a diagonal set of random points trending upwards at 45 degrees
+
+#### i.
+
+What raw slope of the x and y would you generally expect? (note that x, y have the same scale)
+
+**ANS:** The raw slope of x and y would be close to 1. This is because the points are distributed diagonally, trending upwards at 45 degrees, which means that for every unit increase in the x variable, there will be a corresponding unit increase in the y variable. Therefore, the regression line should slope upwards from left to right at 45 degrees, indicating a strong relationship between the x and y variables.
+
+#### ii.
+
+What is the correlation of x and y that you would generally expect?
+
+**ANS:** The correlation of x and y that you would generally expect would be positive and strong. This is because the correlation coefficient measures the strength of the linear relationship between the x and y variables, and if the points are distributed diagonally, trending upwards at 45 degrees, there is likely to be a strong linear relationship to measure. Therefore, the correlation coefficient should be positive and strong, indicating a strong correlation.
+
+### d.
+
+Scenario D: Create a diagonal set of random trending downwards at 45 degrees
+
+#### i.
+
+What raw slope of the x and y would you generally expect? (note that x, y have the same scale)
+
+**ANS:** The raw slope of x and y would be close to -1. This is because the points are distributed diagonally, trending downwards at 45 degrees, which means that for every unit increase in the x variable, there will be a corresponding unit decrease in the y variable. Therefore, the regression line should slope downwards from left to right at 45 degrees, indicating a strong relationship between the x and y variables.
+
+#### ii.
+
+What is the correlation of x and y that you would generally expect?
+
+**ANS:** The correlation of x and y that you would generally expect would be negative and strong. This is because the correlation coefficient measures the strength of the linear relationship between the x and y variables, and if the points are distributed diagonally, trending downwards at 45 degrees, there is likely to be a strong linear relationship to measure. Therefore, the correlation coefficient should be negative and strong, indicating a strong negative correlation.
+
+### e.
+
+Apart from any of the above scenarios, find another pattern of data points with no correlation (r ≈ 0). (can create a pattern that visually suggests a strong relationship but produces r ≈ 0?)
+
+**U-shaped distribution**
+
+![](images/Rplot01.png)
+
+Visually, this pattern can suggest a strong non-linear relationship between the x and y variables, with the majority of the points clustered at the extremes of both variables. However, because the points are distributed symmetrically around the origin, there is no significant linear relationship to measure, and the correlation coefficient will be close to zero.
+
+### f.
+
+Apart from any of the above scenarios, find another pattern of data points with perfect correlation (r ≈ 1). (can you find a scenario where the pattern visually suggests a different relationship?)
+
+**a set of data points that are clustered in several groups, with each group forming a distinct "step" along one of the variables.**
+
+![](images/Rplot.png)
+
+### g.
+
+Let's see how correlation relates to simple regression, by simulating any linear relationship you wish:
+
+#### i.
+
+Run the simulation and record the points you create: `pts <- interactive_regression()` (simulate either a positive or negative relationship)
+
+```{r}
+# pts <- interactive_regression()
+library(readr)
+pts <- read_csv("D:/下載/interactive_regression_result.csv")
+pts 
+```
+
+![](images/Rplot02.png)
+
+#### ii.
+
+Use the `lm()` function to estimate the regression intercept and slope of pts to ensure they are the same as the values reported in the simulation plot: `summary( lm( pts$y ~ pts$x ))`
+
+```{r}
+lm_results <- summary(lm(pts$y ~ pts$x))
+intercept <- lm_results$coefficients[1,1]
+slope <- lm_results$coefficients[2,1]
+```
+
+```{r, echo=FALSE}
+cat("The regression intercept is", round(intercept,2), "\n")
+cat("The regression slope is", round(slope,2), "\n")
+```
+
+The results are same as the values reported in the simulation plot.
+
+#### iii.
+
+Estimate the correlation of x and y to see it is the same as reported in the plot: `cor(pts)`
+
+```{r}
+cor(pts)
+```
+
+```{r, echo=FALSE}
+cat("The correlation is", round(cor(pts$x, pts$y),2), "\n")
+```
+
+The result is same as the value reported in the simulation plot.
+
+#### iv.
+
+Now, standardize the values of both x and y from pts and re-estimate the regression slope
+
+```{r}
+std_x <- scale(pts$x)
+std_y <- scale(pts$y)
+std_slope <- cor(std_x, std_y) * sd(std_y) / sd(std_x)
+```
+
+```{r, echo=FALSE}
+cat("The re-estimated the regression slope is", round(std_slope,2), "\n")
+```
+
+#### v.
+
+What is the relationship between correlation and the standardized simple-regression estimates?
+
+**ANS:**
+
+The relationship between correlation and the standardized simple-regression estimates can be described by the formula: *standardized slope = correlation \* (standard deviation of y) / (standard deviation of x).*
+
+This means that the standardized slope (the slope of the regression line when both x and y are standardized) is equal to the correlation coefficient multiplied by the ratio of the standard deviation of y to the standard deviation of x. In other words, *the stronger the correlation, the larger the standardized slope, and the weaker the correlation, the smaller the standardized slope.*
