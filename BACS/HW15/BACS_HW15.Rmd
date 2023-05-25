@@ -1,0 +1,122 @@
+---
+title: "BACS HW15"
+author: '109090046'
+date: "2023-05-25"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(seminr)
+```
+
+## Load Dataset
+```{r cars}
+security_sem <- read.csv('D:/桌面/NTHU/Courses/BACS/HW15/security_data_sem.csv')
+```
+
+## Question 1) Composite Path Models using PLS-PM
+
+### a. Create a PLS path model using SEMinR, with all the following characteristics:
+
+#### i. Measurement model – all constructs are measured as composites:
+```{r}
+security_mm <- constructs(
+  composite('TRUST', multi_items('TRST', 1:4)),
+  composite('SEC', multi_items('PSEC', 1:4)),
+  composite('REP', multi_items('PREP', 1:4)),
+  composite('INV', multi_items('PINV', 1:3)),
+  composite('POL', multi_items('PPSS', 1:3)),
+  composite('FAML', single_item('FAML1')),
+  interaction_term(iv='REP', moderator='POL', method=orthogonal)
+)
+```
+
+#### ii. Structural Model – paths between constructs as shown in this causal model:
+**REP + INV + POL + FAML + (REP✕POL) → SEC → TRUST**
+```{r}
+security_sm <- relationships(
+  paths(from = c("REP","INV","POL","FAML","REP*POL"), to = "SEC"),
+  paths(from = "SEC", to = "TRUST")
+)
+```
+
+```{r}
+pls <- estimate_pls(
+  data = security_sem,
+  measurement_model = security_mm,
+  structural_model = security_sm
+)
+
+summary(pls)
+```
+
+### b. Show us the following results in table or figure formats:
+
+#### i. Plot a figure of the estimated model
+```{r}
+plot(pls, title="PLS plot")
+```
+
+#### ii. Weights and loadings of composites
+```{r}
+pls_summary <- summary(pls)
+# Weight of composites
+pls_summary$weights
+
+# Loading of composites
+pls_summary$loadings
+```
+
+#### iii. Regression coefficients of paths between factors
+```{r}
+pls_summary$paths
+```
+
+#### iv. Bootstrapped path coefficients: t-values, 95% CI
+```{r}
+boot_pls <- bootstrap_model(pls, nboot=1000)
+
+summary(boot_pls)
+```
+
+## Question 2) Common-Factor Models using CB-SEM
+
+### a. Create a common factor model using SEMinR, with the following characteristics:
+
+#### i. Either respecify all the constructs as being `reflective()`, or use the `as.reflective()` function to convert your earlier measurement model to being entirely reflective.
+```{r}
+ref_mm <- as.reflective(security_mm)
+```
+
+##### ii. Use the same structural model as before (you can just reuse it again!)
+```{r}
+security_sm
+```
+
+### b. Show us the following results in table or figure formats
+```{r}
+sec_cbsem <- estimate_cbsem(
+  data = security_sem,
+  measurement_model = ref_mm,
+  structural_model = security_sm
+)
+
+summary(sec_cbsem)
+```
+
+#### i. Plot a figure of the estimated model (it will look different from your PLS model!)
+```{r}
+plot(sec_cbsem, title="Common-Factor Models using CB-SEM")
+```
+
+#### ii. Loadings of composites
+```{r}
+summary_cbsem <- summary(sec_cbsem)
+summary_cbsem$loadings
+```
+
+#### iii. Regression coefficients of paths between factors, and their p-values
+```{r}
+summary_cbsem$paths
+```
